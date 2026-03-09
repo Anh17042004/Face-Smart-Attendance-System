@@ -1,0 +1,64 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+ven/
+.venv/
+venv/
+ENV/
+env/
+
+# VS Code / IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime files
+*.log
+*.pid
+*.out
+*.err
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Build / packaging artifacts
+build/
+dist/
+*.spec
+*.egg-info/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Project data artifacts
+apps/**/logs/
+apps/**/captures/
+apps/**/gallery/
+
+# Model artifacts (large binaries)
+apps/**/models/
+models/
+*.onnx
+
+# Local database/files
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker local volumes/overrides
+**/.docker/
+**/docker-compose.override.yml
