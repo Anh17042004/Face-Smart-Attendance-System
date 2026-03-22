@@ -1,11 +1,11 @@
 # Backend Architecture
 
-Backend su dung `FastAPI + SQLAlchemy + Alembic + PostgreSQL`.
+Backend su dung `FastAPI + SQLAlchemy + Alembic + PostgreSQL + Milvus`.
 
 ## Muc Tieu
 
 - Nhan su kien cham cong tu desktop client.
-- Cung cap API match/enroll embedding cho desktop client (online-only).
+- Cung cap API match/enroll embedding qua Milvus cho desktop client (online-only).
 - Luu/tra cuu du lieu cham cong tren PostgreSQL.
 - Quan ly schema DB theo version bang Alembic.
 
@@ -22,17 +22,24 @@ Backend su dung `FastAPI + SQLAlchemy + Alembic + PostgreSQL`.
 
 ## Luong Du Lieu
 
-`Desktop Client -> /api/v1/recognition/* -> Service -> Repository -> PostgreSQL`
+`Desktop Client -> /api/v1/recognition/* -> Service -> Repository -> Milvus`
 
 `Desktop Client -> /api/v1/attendance/events -> Service -> Repository -> PostgreSQL`
 
-## Database
+## Databases
 
-- DB URL doc tu env var `DATABASE_URL`.
-- Gia tri mac dinh trong code:
+- PostgreSQL URL doc tu env var `DATABASE_URL`.
+- Gia tri mac dinh:
 
 ```bash
 postgresql+psycopg://postgres:postgres@localhost:5432/face_smart
+```
+
+- Milvus URL doc tu env var `MILVUS_URI`.
+- Gia tri mac dinh:
+
+```bash
+http://localhost:19530
 ```
 
 ### Cac Bang Chinh
@@ -51,14 +58,20 @@ postgresql+psycopg://postgres:postgres@localhost:5432/face_smart
 pip install -r requirements.txt
 ```
 
-## Chay PostgreSQL Bang Docker
+## Chay PostgreSQL + Milvus Bang Docker
 
 Tai `apps/backend` da co san:
 
 - `docker-compose.yml`
-- `.env`
+- `.env.example`
 
-Bat PostgreSQL:
+Tao file `.env` tu mau:
+
+```bash
+copy .env.example .env
+```
+
+Bat tat ca service:
 
 ```bash
 docker compose up -d
@@ -70,10 +83,17 @@ Kiem tra trang thai:
 docker compose ps
 ```
 
-Tat PostgreSQL:
+Tat tat ca service:
 
 ```bash
 docker compose down
+```
+
+Neu chi muon bat rieng tung service:
+
+```bash
+docker compose up -d postgres
+docker compose up -d etcd minio milvus
 ```
 
 ## Chay Migration
@@ -96,6 +116,19 @@ alembic upgrade head
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+## Milvus Config Chinh
+
+Trong `app/core/config.py`:
+
+- `MILVUS_URI`
+- `MILVUS_DB_NAME`
+- `MILVUS_COLLECTION_NAME`
+- `MILVUS_VECTOR_DIM`
+- `MILVUS_INDEX_TYPE` (mac dinh `HNSW`)
+- `MILVUS_METRIC_TYPE` (mac dinh `COSINE`)
+- `MILVUS_TOP_K`
+- `MIRROR_EMBEDDING_TO_POSTGRES`
 
 ## Endpoints Hien Tai
 

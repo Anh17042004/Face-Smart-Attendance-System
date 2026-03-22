@@ -24,11 +24,14 @@ def match_embeddings_batch(
     payload: MatchBatchRequest,
     service: RecognitionService = Depends(get_service),
 ) -> MatchBatchResponse:
-    return service.match_embeddings_batch(
-        embeddings=payload.embeddings,
-        threshold=payload.threshold,
-        min_vote_count=payload.min_vote_count,
-    )
+    try:
+        return service.match_embeddings_batch(
+            embeddings=payload.embeddings,
+            threshold=payload.threshold,
+            min_vote_count=payload.min_vote_count,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"recognition_backend_error: {exc}") from exc
 
 
 @router.post("/enroll", response_model=EnrollResponse)
@@ -43,5 +46,5 @@ def enroll_embedding(
             embedding=payload.embedding,
             model_version=payload.model_version,
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"recognition_backend_error: {exc}") from exc
