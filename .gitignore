@@ -53,6 +53,8 @@ apps/**/gallery/
 apps/**/models/
 models/
 *.onnx
+!apps/backend/app/models/
+!apps/backend/app/models/**
 
 # Local database/files
 *.db
