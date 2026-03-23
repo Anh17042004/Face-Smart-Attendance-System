@@ -154,9 +154,12 @@ def run_register_employee(
                 if not ok_enroll:
                     cap.release()
                     cv2.destroyAllWindows()
+                    error_code = enroll_data.get("error") if isinstance(enroll_data, dict) else "unknown_error"
+                    error_detail = enroll_data.get("detail") if isinstance(enroll_data, dict) else None
                     return {
                         "success": False,
-                        "reason": "network_error",
+                        "reason": "backend_error" if str(error_code).startswith("http_") else "network_error",
+                        "detail": error_detail or error_code,
                         "employee_code": person_code,
                         "employee_name": person_name,
                         "captured": captured,

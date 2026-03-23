@@ -71,6 +71,14 @@ Tao file `.env` tu mau:
 copy .env.example .env
 ```
 
+Neu bi trung port voi project khac, doi cac bien trong `.env`:
+
+- `FACE_POSTGRES_PORT` (map host -> postgres)
+- `MILVUS_PORT`, `MILVUS_HTTP_PORT`
+- `MINIO_API_PORT`, `MINIO_CONSOLE_PORT`
+
+Luu y: neu doi `FACE_POSTGRES_PORT` hoac `MILVUS_PORT`, can doi lai `DATABASE_URL` / `MILVUS_URI` tuong ung.
+
 Bat tat ca service:
 
 ```bash
@@ -116,6 +124,9 @@ alembic upgrade head
 ```bash
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+Backend tu dong nap `apps/backend/.env` khi khoi dong (qua `app/core/config.py`).
+Neu da export env tu he thong truoc do, gia tri he thong se duoc uu tien.
 
 ## Milvus Config Chinh
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime
+from datetime import timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -14,12 +16,27 @@ from app.models.device import Device
 from app.models.user import User
 
 admin_app = FastAPI(title="Face Smart Admin UI", version="0.1.0")
+DISPLAY_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
+DISPLAY_TZ_LABEL = "ICT (+07:00)"
+VALID_TABS = {"employees", "logs", "summary"}
+
+
+def _safe_tab(tab: str | None) -> str:
+    value = (tab or "").strip().lower()
+    return value if value in VALID_TABS else "employees"
+
+
+def _redirect_with_msg(msg: str, tab: str = "employees") -> RedirectResponse:
+    return RedirectResponse(url=f"/?msg={msg}&tab={_safe_tab(tab)}", status_code=303)
 
 
 def _fmt_dt(value: datetime | None) -> str:
     if value is None:
         return ""
-    return value.strftime("%Y-%m-%d %H:%M:%S")
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    local_dt = value.astimezone(DISPLAY_TIMEZONE)
+    return f"{local_dt.strftime('%Y-%m-%d %H:%M:%S')} {DISPLAY_TZ_LABEL}"
 
 
 def _parse_dt_local(value: str | None) -> datetime | None:
@@ -27,13 +44,15 @@ def _parse_dt_local(value: str | None) -> datetime | None:
         return None
     try:
         # Browser datetime-local format: YYYY-MM-DDTHH:MM
-        return datetime.strptime(value, "%Y-%m-%dT%H:%M")
+        naive = datetime.strptime(value, "%Y-%m-%dT%H:%M")
+        return naive.replace(tzinfo=DISPLAY_TIMEZONE)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid datetime format: {value}") from exc
 
 
 @admin_app.get("/", response_class=HTMLResponse)
-def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
+def dashboard(limit: int = 50, q: str = "", msg: str = "", tab: str = "employees") -> str:
+    active_tab = _safe_tab(tab)
     with SessionLocal() as db:
         users_total = int(db.scalar(select(func.count(User.id))) or 0)
         logs_total = int(db.scalar(select(func.count(AttendanceLog.id))) or 0)
@@ -98,6 +117,7 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
 
     logs_html = "".join(
         f"<tr>"
+        f"<td><input type='checkbox' name='log_ids' value='{log.id}' form='logs-bulk-form' /></td>"
         f"<td>{log.id}</td>"
         f"<td>{_fmt_dt(log.timestamp)}</td>"
         f"<td>{log.type}</td>"
@@ -105,12 +125,20 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
         f"<td>{user_name or ''}</td>"
         f"<td>{dev_code or ''}</td>"
         f"<td>{log.confidence if log.confidence is not None else ''}</td>"
+        f"<td>"
+        f"<form method='post' action='/logs/delete' style='display:inline'>"
+        f"<input type='hidden' name='log_id' value='{log.id}' />"
+        f"<input type='hidden' name='tab' value='logs' />"
+        f"<button type='submit' class='danger' onclick=\"return confirm('Delete this attendance log?');\">Delete</button>"
+        f"</form>"
+        f"</td>"
         f"</tr>"
         for log, emp_code, user_name, dev_code in log_rows
     )
 
     summaries_html = "".join(
         f"<tr>"
+        f"<td><input type='checkbox' name='summary_ids' value='{summary.id}' form='summary-bulk-form' /></td>"
         f"<td>{summary.id}</td>"
         f"<td>{summary.date}</td>"
         f"<td>{emp_code}</td>"
@@ -118,6 +146,13 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
         f"<td>{_fmt_dt(summary.checkin_time)}</td>"
         f"<td>{_fmt_dt(summary.checkout_time)}</td>"
         f"<td>{summary.status}</td>"
+        f"<td>"
+        f"<form method='post' action='/summary/delete' style='display:inline'>"
+        f"<input type='hidden' name='summary_id' value='{summary.id}' />"
+        f"<input type='hidden' name='tab' value='summary' />"
+        f"<button type='submit' class='danger' onclick=\"return confirm('Delete this attendance summary?');\">Delete</button>"
+        f"</form>"
+        f"</td>"
         f"</tr>"
         for summary, emp_code, user_name in summary_rows
     )
@@ -188,6 +223,7 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
     <div class=\"hero\">
       <h1>Attendance Admin Dashboard</h1>
       <p>Quan ly nhan vien, theo doi cham cong va cap nhat du lieu truc tiep tren 1 giao dien gon gang.</p>
+      <p><small>Tat ca moc thoi gian duoc hien thi theo ICT (+07:00).</small></p>
     </div>
 
     {msg_html}
@@ -199,12 +235,12 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
     </div>
 
     <div class=\"tabs\">
-      <button class=\"tab-btn active\" data-tab=\"employees\">Nhan vien</button>
-      <button class=\"tab-btn\" data-tab=\"logs\">Cham cong</button>
-      <button class=\"tab-btn\" data-tab=\"summary\">Tong hop ngay</button>
+      <button class=\"tab-btn {'active' if active_tab == 'employees' else ''}\" data-tab=\"employees\">Nhan vien</button>
+      <button class=\"tab-btn {'active' if active_tab == 'logs' else ''}\" data-tab=\"logs\">Cham cong</button>
+      <button class=\"tab-btn {'active' if active_tab == 'summary' else ''}\" data-tab=\"summary\">Tong hop ngay</button>
     </div>
 
-    <section id=\"employees\" class=\"panel active\">
+    <section id=\"employees\" class=\"panel {'active' if active_tab == 'employees' else ''}\">
       <div class=\"card\">
         <h2>Create Employee</h2>
         <form method=\"post\" action=\"/employees/create\" class=\"form-row\">
@@ -212,6 +248,7 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
           <input name=\"name\" placeholder=\"name\" required />
           <input name=\"position\" placeholder=\"position\" />
           <input name=\"status\" placeholder=\"status\" value=\"active\" required />
+          <input type=\"hidden\" name=\"tab\" value=\"employees\" />
           <button type=\"submit\">Create</button>
         </form>
       </div>
@@ -221,6 +258,7 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
         <form method=\"get\" action=\"/\" style=\"display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap\">
           <input name=\"q\" value=\"{q}\" placeholder=\"search employee_code or name\" />
           <input name=\"limit\" value=\"{limit}\" style=\"width:90px\" />
+          <input type=\"hidden\" name=\"tab\" value=\"employees\" />
           <button type=\"submit\">Filter</button>
         </form>
         <div class=\"table-wrap\">
@@ -234,13 +272,17 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
       </div>
     </section>
 
-    <section id=\"logs\" class=\"panel\">
+    <section id=\"logs\" class=\"panel {'active' if active_tab == 'logs' else ''}\">
       <div class=\"card\">
         <h2>Attendance Logs</h2>
+        <form method=\"post\" action=\"/logs/delete-bulk\" id=\"logs-bulk-form\" style=\"display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap\">
+          <input type=\"hidden\" name=\"tab\" value=\"logs\" />
+          <button type=\"submit\" class=\"danger\" onclick=\"return confirm('Delete selected attendance logs?');\">Delete selected</button>
+        </form>
         <div class=\"table-wrap\">
           <table>
             <thead>
-              <tr><th>ID</th><th>Timestamp</th><th>Type</th><th>Employee Code</th><th>Name</th><th>Device</th><th>Confidence</th></tr>
+              <tr><th><input type=\"checkbox\" id=\"logs-select-all\" /></th><th>ID</th><th>Timestamp</th><th>Type</th><th>Employee Code</th><th>Name</th><th>Device</th><th>Confidence</th><th>Actions</th></tr>
             </thead>
             <tbody>{logs_html}</tbody>
           </table>
@@ -248,7 +290,7 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
       </div>
     </section>
 
-    <section id=\"summary\" class=\"panel\">
+    <section id=\"summary\" class=\"panel {'active' if active_tab == 'summary' else ''}\">
       <div class=\"card\">
         <h2>Update Attendance Summary</h2>
         <form method=\"post\" action=\"/summary/update\" class=\"form-row\">
@@ -256,16 +298,21 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
           <input name=\"checkin_time\" type=\"datetime-local\" />
           <input name=\"checkout_time\" type=\"datetime-local\" />
           <input name=\"status\" placeholder=\"status (checkin_muon;checkout_ve_som)\" />
+          <input type=\"hidden\" name=\"tab\" value=\"summary\" />
           <button type=\"submit\">Update</button>
         </form>
       </div>
 
       <div class=\"card\">
         <h2>Attendance Summaries</h2>
+        <form method=\"post\" action=\"/summary/delete-bulk\" id=\"summary-bulk-form\" style=\"display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap\">
+          <input type=\"hidden\" name=\"tab\" value=\"summary\" />
+          <button type=\"submit\" class=\"danger\" onclick=\"return confirm('Delete selected attendance summaries?');\">Delete selected</button>
+        </form>
         <div class=\"table-wrap\">
           <table>
             <thead>
-              <tr><th>ID</th><th>Date</th><th>Employee Code</th><th>Name</th><th>Checkin</th><th>Checkout</th><th>Status</th></tr>
+              <tr><th><input type=\"checkbox\" id=\"summary-select-all\" /></th><th>ID</th><th>Date</th><th>Employee Code</th><th>Name</th><th>Checkin</th><th>Checkout</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>{summaries_html}</tbody>
           </table>
@@ -286,6 +333,26 @@ def dashboard(limit: int = 50, q: str = "", msg: str = "") -> str:
         document.getElementById(tab).classList.add('active');
       }});
     }});
+
+    const logsSelectAll = document.getElementById('logs-select-all');
+    if (logsSelectAll) {{
+      logsSelectAll.addEventListener('change', () => {{
+        const checked = logsSelectAll.checked;
+        document.querySelectorAll("input[name='log_ids']").forEach((el) => {{
+          el.checked = checked;
+        }});
+      }});
+    }}
+
+    const summarySelectAll = document.getElementById('summary-select-all');
+    if (summarySelectAll) {{
+      summarySelectAll.addEventListener('change', () => {{
+        const checked = summarySelectAll.checked;
+        document.querySelectorAll("input[name='summary_ids']").forEach((el) => {{
+          el.checked = checked;
+        }});
+      }});
+    }}
   </script>
 </body>
 </html>
@@ -298,13 +365,14 @@ def create_employee(
   name: str = Form(...),
   position: str | None = Form(default=None),
   status: str = Form(default="active"),
+  tab: str = Form(default="employees"),
 ) -> RedirectResponse:
   employee_code = employee_code.strip()
   name = name.strip()
   status = status.strip() or "active"
 
   if not employee_code or not name:
-    return RedirectResponse(url="/?msg=employee_code_and_name_required", status_code=303)
+    return _redirect_with_msg("employee_code_and_name_required", tab=tab)
 
   with SessionLocal() as db:
     db.add(
@@ -319,9 +387,9 @@ def create_employee(
       db.commit()
     except IntegrityError:
       db.rollback()
-      return RedirectResponse(url="/?msg=employee_code_exists", status_code=303)
+      return _redirect_with_msg("employee_code_exists", tab=tab)
 
-  return RedirectResponse(url="/?msg=employee_created", status_code=303)
+  return _redirect_with_msg("employee_created", tab=tab)
 
 
 @admin_app.post("/employees/update")
@@ -330,11 +398,12 @@ def update_employee(
   name: str = Form(...),
   position: str | None = Form(default=None),
   status: str = Form(...),
+  tab: str = Form(default="employees"),
 ) -> RedirectResponse:
   with SessionLocal() as db:
     user = db.scalar(select(User).where(User.id == user_id).limit(1))
     if user is None:
-      return RedirectResponse(url="/?msg=user_not_found", status_code=303)
+      return _redirect_with_msg("user_not_found", tab=tab)
 
     user.name = name.strip()
     user.position = (position or "").strip() or None
@@ -342,15 +411,15 @@ def update_employee(
     db.add(user)
     db.commit()
 
-  return RedirectResponse(url="/?msg=employee_updated", status_code=303)
+  return _redirect_with_msg("employee_updated", tab=tab)
 
 
 @admin_app.post("/employees/delete")
-def delete_employee(user_id: str = Form(...)) -> RedirectResponse:
+def delete_employee(user_id: str = Form(...), tab: str = Form(default="employees")) -> RedirectResponse:
   with SessionLocal() as db:
     user = db.scalar(select(User).where(User.id == user_id).limit(1))
     if user is None:
-      return RedirectResponse(url="/?msg=user_not_found", status_code=303)
+      return _redirect_with_msg("user_not_found", tab=tab)
 
     # Safety guard: avoid deleting employee with attendance data.
     has_logs = db.scalar(select(func.count(AttendanceLog.id)).where(AttendanceLog.user_id == user_id)) or 0
@@ -358,12 +427,44 @@ def delete_employee(user_id: str = Form(...)) -> RedirectResponse:
       select(func.count(AttendanceSummary.id)).where(AttendanceSummary.user_id == user_id)
     ) or 0
     if int(has_logs) > 0 or int(has_summaries) > 0:
-      return RedirectResponse(url="/?msg=cannot_delete_user_with_attendance_data", status_code=303)
+      return _redirect_with_msg("cannot_delete_user_with_attendance_data", tab=tab)
 
     db.delete(user)
     db.commit()
 
-  return RedirectResponse(url="/?msg=employee_deleted", status_code=303)
+  return _redirect_with_msg("employee_deleted", tab=tab)
+
+
+@admin_app.post("/logs/delete")
+def delete_log(log_id: str = Form(...), tab: str = Form(default="logs")) -> RedirectResponse:
+  with SessionLocal() as db:
+    log = db.scalar(select(AttendanceLog).where(AttendanceLog.id == log_id).limit(1))
+    if log is None:
+      return _redirect_with_msg("attendance_log_not_found", tab=tab)
+
+    db.delete(log)
+    db.commit()
+
+  return _redirect_with_msg("attendance_log_deleted", tab=tab)
+
+
+@admin_app.post("/logs/delete-bulk")
+def delete_logs_bulk(log_ids: list[str] | None = Form(default=None), tab: str = Form(default="logs")) -> RedirectResponse:
+  selected_ids = [item.strip() for item in (log_ids or []) if item and item.strip()]
+  if not selected_ids:
+    return _redirect_with_msg("no_log_selected", tab=tab)
+
+  with SessionLocal() as db:
+    logs = db.execute(select(AttendanceLog).where(AttendanceLog.id.in_(selected_ids))).scalars().all()
+    if not logs:
+      return _redirect_with_msg("attendance_logs_not_found", tab=tab)
+
+    deleted_count = len(logs)
+    for log in logs:
+      db.delete(log)
+    db.commit()
+
+  return _redirect_with_msg(f"attendance_logs_deleted_{deleted_count}", tab=tab)
 
 
 @admin_app.post("/summary/update")
@@ -372,6 +473,7 @@ def update_summary(
     checkin_time: str | None = Form(default=None),
     checkout_time: str | None = Form(default=None),
     status: str | None = Form(default=None),
+    tab: str = Form(default="summary"),
 ) -> RedirectResponse:
     with SessionLocal() as db:
         summary = db.scalar(
@@ -393,4 +495,43 @@ def update_summary(
         db.add(summary)
         db.commit()
 
-    return RedirectResponse(url="/", status_code=303)
+    return _redirect_with_msg("summary_updated", tab=tab)
+
+
+@admin_app.post("/summary/delete")
+def delete_summary(summary_id: str = Form(...), tab: str = Form(default="summary")) -> RedirectResponse:
+    with SessionLocal() as db:
+        summary = db.scalar(
+            select(AttendanceSummary).where(AttendanceSummary.id == summary_id).limit(1)
+        )
+        if summary is None:
+            return _redirect_with_msg("summary_not_found", tab=tab)
+
+        db.delete(summary)
+        db.commit()
+
+    return _redirect_with_msg("summary_deleted", tab=tab)
+
+
+@admin_app.post("/summary/delete-bulk")
+def delete_summaries_bulk(
+    summary_ids: list[str] | None = Form(default=None),
+    tab: str = Form(default="summary"),
+) -> RedirectResponse:
+    selected_ids = [item.strip() for item in (summary_ids or []) if item and item.strip()]
+    if not selected_ids:
+        return _redirect_with_msg("no_summary_selected", tab=tab)
+
+    with SessionLocal() as db:
+        summaries = db.execute(
+            select(AttendanceSummary).where(AttendanceSummary.id.in_(selected_ids))
+        ).scalars().all()
+        if not summaries:
+            return _redirect_with_msg("summaries_not_found", tab=tab)
+
+        deleted_count = len(summaries)
+        for summary in summaries:
+            db.delete(summary)
+        db.commit()
+
+    return _redirect_with_msg(f"summaries_deleted_{deleted_count}", tab=tab)

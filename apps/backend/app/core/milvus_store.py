@@ -158,14 +158,17 @@ class MilvusVectorStore:
         embedding: list[float],
         model_version: str,
     ) -> str | None:
-        payload = {
-            "user_id": [user_id],
-            "employee_code": [employee_code],
-            "user_name": [user_name],
-            "model_version": [model_version],
-            "created_at": [int(datetime.now(timezone.utc).timestamp())],
-            "embedding": [embedding],
-        }
+        # Row-based payload format for pymilvus 2.6.x.
+        payload = [
+            {
+                "user_id": user_id,
+                "employee_code": employee_code,
+                "user_name": user_name,
+                "model_version": model_version,
+                "created_at": int(datetime.now(timezone.utc).timestamp()),
+                "embedding": embedding,
+            }
+        ]
         insert_result = self.collection.insert(payload)
         self.collection.flush()
         if not insert_result.primary_keys:
@@ -180,4 +183,3 @@ class MilvusVectorStore:
             limit=max(1, int(limit)),
         )
         return len(rows)
-

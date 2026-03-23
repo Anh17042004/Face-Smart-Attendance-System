@@ -1,16 +1,11 @@
 import json
-import os
 from pathlib import Path
 
 import cv2
 import numpy as np
 import onnxruntime as ort
 
-
-MODEL_DIR = Path(__file__).resolve().parents[2] / "models"
-DETECTOR_PATH = MODEL_DIR / "FaceDetector.onnx"
-LIVENESS_PATH = MODEL_DIR / "best_model_anti_spoofing.onnx"
-ARCFACE_PATH = MODEL_DIR / "arcface.onnx"
+from app.core.settings import ARCFACE_MODEL, DETECTOR_MODEL, LIVENESS_MODEL
 
 ARCFACE_TEMPLATE = np.array(
     [
@@ -43,9 +38,9 @@ def create_session(model_path: Path):
 
 
 def load_models(verbose=True):
-    detector = create_session(DETECTOR_PATH)
-    liveness = create_session(LIVENESS_PATH)
-    arcface = create_session(ARCFACE_PATH)
+    detector = create_session(DETECTOR_MODEL)
+    liveness = create_session(LIVENESS_MODEL)
+    arcface = create_session(ARCFACE_MODEL)
 
     if verbose:
         print("\n[Detector]")

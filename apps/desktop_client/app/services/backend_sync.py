@@ -12,7 +12,16 @@ class BackendSyncClient:
             resp = requests.request(method=method, url=url, json=payload, timeout=self.timeout_seconds)
             if resp.status_code < 300:
                 return True, resp.json() if resp.text else {}
-            return False, {"error": f"http_{resp.status_code}", "detail": resp.text}
+            detail = resp.text
+            try:
+                parsed = resp.json()
+                if isinstance(parsed, dict):
+                    detail = parsed.get("detail", parsed)
+                else:
+                    detail = parsed
+            except Exception:
+                pass
+            return False, {"error": f"http_{resp.status_code}", "detail": detail}
         except Exception as exc:
             return False, {"error": str(exc)}
 

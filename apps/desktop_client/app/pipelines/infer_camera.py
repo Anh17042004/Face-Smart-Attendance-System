@@ -124,8 +124,13 @@ def run_attendance(stop_on_accept: bool = False, models=None):
                     if not ok_match:
                         cap.release()
                         cv2.destroyAllWindows()
-                        print(f"[ERR] Loi ket noi recognition API: {match_data.get('error', 'unknown')}.")
-                        return {"error": "network_error", "detail": match_data.get("error", "unknown")}
+                        error_code = match_data.get("error", "unknown")
+                        error_detail = match_data.get("detail", error_code)
+                        print(f"[ERR] Loi recognition API: {error_code}.")
+                        return {
+                            "error": "backend_error" if str(error_code).startswith("http_") else "network_error",
+                            "detail": error_detail,
+                        }
 
                     vote_count = int(match_data.get("vote_count", 0))
                     total_frames = int(match_data.get("total_frames", IDENTITY_VOTE_WINDOW_SIZE))
@@ -149,7 +154,8 @@ def run_attendance(stop_on_accept: bool = False, models=None):
                 if name == "unknown":
                     record = logger.log(
                         "UNKNOWN",
-                        name=name,
+                        employee_code="unknown",
+                        user_name="",
                         similarity=round(float(score), 4),
                         liveness_score=round(float(live), 4),
                     )
@@ -157,9 +163,12 @@ def run_attendance(stop_on_accept: bool = False, models=None):
 
                 if identity_info.get("accepted"):
                     accepted_at = datetime.now()
+                    accepted_code = str(identity_info["identity"])
+                    accepted_user_name = (user_name or "").strip()
                     record = logger.log(
                         "ACCEPT",
-                        name=identity_info["identity"],
+                        employee_code=accepted_code,
+                        user_name=accepted_user_name,
                         similarity=round(float(identity_info["similarity"]), 4),
                         liveness_score=round(float(live), 4),
                         vote_count=last_vote_info["vote_count"],
@@ -168,14 +177,14 @@ def run_attendance(stop_on_accept: bool = False, models=None):
 
                     payload = {
                         "type": DEFAULT_ATTENDANCE_TYPE,
-                        "employee_code": identity_info["identity"],
+                        "employee_code": accepted_code,
                         "similarity": round(float(identity_info["similarity"]), 4),
                         "liveness_score": round(float(live), 4),
                         "device_id": DEVICE_CODE,
                         "metadata": {
                             "source": "desktop_client",
                             "event": "ACCEPT",
-                            "user_name": user_name,
+                            "user_name": accepted_user_name,
                         },
                     }
                     ok, reason = sync_client.send_event(payload)
@@ -186,14 +195,17 @@ def run_attendance(stop_on_accept: bool = False, models=None):
                         cap.release()
                         cv2.destroyAllWindows()
                         print(f"[ERR] Khong gui duoc attendance event: {reason}")
-                        return {"error": "network_error", "detail": reason}
+                        return {
+                            "error": "backend_error" if str(reason).startswith("http_") else "network_error",
+                            "detail": reason,
+                        }
 
                     if stop_on_accept:
                         cap.release()
                         cv2.destroyAllWindows()
                         return {
-                            "employee_code": identity_info["identity"],
-                            "user_name": user_name,
+                            "employee_code": accepted_code,
+                            "user_name": accepted_user_name,
                             "attendance_type": str(saved_event.get("type", DEFAULT_ATTENDANCE_TYPE)).lower(),
                             "similarity": round(float(identity_info["similarity"]), 4),
                             "liveness_score": round(float(live), 4),

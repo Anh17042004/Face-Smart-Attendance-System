@@ -1,4 +1,13 @@
 import os
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:  # pragma: no cover
+    def load_dotenv(*_args, **_kwargs) -> bool:
+        return False
+
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=False)
 
 
 DATABASE_URL = os.getenv(

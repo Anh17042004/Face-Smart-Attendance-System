@@ -5,13 +5,10 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parents[2]
 
 # Models
-# Thu muc chua cac file model ONNX cho detect/liveness/embedding.
+# Dat model duy nhat tai: apps/desktop_client/models
 MODEL_DIR = BASE_DIR / "models"
-# Duong dan model phat hien khuon mat (tra ve bbox + landmarks).
-DETECTOR_MODEL = MODEL_DIR / "FaceDetector.onnx"
-# Duong dan model anti-spoofing (du doan xac suat that/gia).
-LIVENESS_MODEL = MODEL_DIR / "best_model_anti_spoofing.onnx"
-# Duong dan model ArcFace embedding (vector dac trung danh tinh).
+DETECTOR_MODEL = MODEL_DIR / "retina_face.onnx"
+LIVENESS_MODEL = MODEL_DIR / "anti_sproofing.onnx"
 ARCFACE_MODEL = MODEL_DIR / "arcface.onnx"
 
 # Data
@@ -51,11 +48,11 @@ IDENTITY_VOTE_MIN_COUNT = 4
 
 COOLDOWN_SECONDS = 15
 
-# Thời gian bắt đầu làm việc
+# Thoi gian bat dau lam viec.
 SHIFT_START_HOUR = 8
 SHIFT_START_MINUTE = 0
-LATE_GRACE_MINUTES = 15  # được phép muộn tối đa 15p
+LATE_GRACE_MINUTES = 15  # Duoc phep muon toi da 15p.
 
-# thời gian tan ca làm việc
+# Thoi gian tan ca lam viec.
 SHIFT_END_HOUR = 17
 SHIFT_END_MINUTE = 30

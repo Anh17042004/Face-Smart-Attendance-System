@@ -21,6 +21,7 @@ class PostgresEventRepository:
     def __init__(self, db: Session) -> None:
         self.db = db
 
+    # nếu trước đó là checkin rồi thì sẽ là checkout, nếu chưa checkin sẽ checkin
     def _resolve_event_type(self, requested_type: str, user_id: str | None) -> str:
         event_type = (requested_type or "").strip().lower()
         if event_type and event_type != "auto":
@@ -39,6 +40,7 @@ class PostgresEventRepository:
         if last_event is None:
             return "checkin"
         return "checkout" if (last_event.type or "").lower() == "checkin" else "checkin"
+
 
     def _compute_attendance_status(self, resolved_type: str, event_time: datetime) -> str:
         local_dt = event_time.astimezone() if event_time.tzinfo else event_time

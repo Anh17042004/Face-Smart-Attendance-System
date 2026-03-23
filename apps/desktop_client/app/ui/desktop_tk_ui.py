@@ -50,6 +50,11 @@ def _run_attendance(root: tk.Tk, models) -> None:
         messagebox.showerror("Cham cong", "Khong ket noi duoc backend. Khong the cham cong.")
         return
 
+    if result.get("error") == "backend_error":
+        detail = result.get("detail") or "unknown_backend_error"
+        messagebox.showerror("Cham cong", f"Backend tra ve loi:\n{detail}")
+        return
+
     if result.get("error") == "camera_error":
         messagebox.showerror("Cham cong", "Khong mo duoc camera.")
         return
@@ -117,6 +122,11 @@ def _run_enroll(root: tk.Tk, models) -> None:
 
     if result.get("reason") == "network_error":
         messagebox.showerror("Dang ky", "Khong ket noi duoc backend. Khong the dang ky.")
+        return
+
+    if result.get("reason") == "backend_error":
+        detail = result.get("detail") or "unknown_backend_error"
+        messagebox.showerror("Dang ky", f"Backend tu choi yeu cau dang ky:\n{detail}")
         return
 
     if result.get("reason") == "incomplete":

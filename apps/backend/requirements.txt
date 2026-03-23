@@ -4,4 +4,5 @@ sqlalchemy==2.0.43
 psycopg[binary]==3.2.10
 alembic==1.16.4
 python-multipart==0.0.20
+python-dotenv==1.0.1
 pymilvus==2.6.2
